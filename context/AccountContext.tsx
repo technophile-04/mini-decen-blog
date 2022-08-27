@@ -1,0 +1,3 @@
+type accountContextType = {
+  user: boolean;
+};
