@@ -3,12 +3,11 @@ import { useState, useRef, useEffect, ChangeEvent } from "react"; // new
 import { useRouter } from "next/router";
 import dynamic from "next/dynamic";
 import { css } from "@emotion/css";
-import { ethers } from "ethers";
-import { create } from "ipfs-http-client";
 const SimpleMDE = dynamic(() => import("react-simplemde-editor"), {
   ssr: false,
 });
 import "easymde/dist/easymde.min.css";
+import axios from "axios";
 
 import contractAddresses from "../contracts/contract-addresses.json";
 
@@ -17,9 +16,13 @@ import { NextPage } from "next";
 import { useAccount, useContractWrite, usePrepareContractWrite } from "wagmi";
 import Navbar from "../components/Navbar";
 
-const client = create({
-  url: "https://api.filebase.io/v1/ipfs",
-});
+// const client = create({
+//   url: "https://api-eu1.tatum.io/v3/ipfs",
+//   headers: {
+//     "Content-Type": "multipart/form-data",
+//     "x-api-key": process.env.NEXT_PUBLIC_IPFS_API_KEY!,
+//   },
+// });
 
 /* configure the markdown editor to be client-side import */
 
@@ -48,7 +51,6 @@ const CreatePost: NextPage = () => {
     addressOrName: contractAddresses[31337][0],
     contractInterface: Blog.abi,
     functionName: "createPost",
-    args: ["Hello"],
     mode: "recklesslyUnprepared",
     onError(err) {
       console.log(err);
@@ -89,8 +91,23 @@ const CreatePost: NextPage = () => {
   async function savePostToIpfs() {
     /* save post metadata to ipfs */
     try {
-      const added = await client.add(JSON.stringify(post));
-      return added.path;
+      // const added = await client.add(JSON.stringify(post));
+      const config = {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_NFT_STORAGE}`,
+        },
+      };
+
+      const { data } = await axios.post(
+        "https://api.nft.storage/upload",
+        JSON.stringify(post),
+        config
+      );
+
+      console.log("Ipf json data", data);
+
+      return data.value.cid;
     } catch (err) {
       console.log("error: ", err);
     }
@@ -128,8 +145,26 @@ const CreatePost: NextPage = () => {
       uploadedFile = e.target.files[0];
     }
     if (!uploadedFile) return;
-    const added = await client.add(uploadedFile);
-    setPost((state) => ({ ...state, coverImage: added.path }));
+    // const added = await client.add(uploadedFile);
+    const form = new FormData();
+    console.log(uploadedFile);
+    form.append("file", uploadedFile);
+    const config = {
+      headers: {
+        "Content-Type": "multipart/form-data",
+        "x-api-key": process.env.NEXT_PUBLIC_IPFS_API_KEY!,
+      },
+    };
+
+    const { data } = await axios.post(
+      "https://api-eu1.tatum.io/v3/ipfs",
+      form,
+      config
+    );
+
+    console.log("IPFS uploaded", data);
+
+    setPost((state) => ({ ...state, coverImage: data.ipfsHash }));
     setImage(uploadedFile);
   }
 
